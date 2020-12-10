@@ -1,0 +1,57 @@
+#!/usr/bin/ansible-playbook
+ - name: Playbook to install docker
+   hosts: remote
+   become: yes
+   gather_facts: true
+   tasks:
+    - name: Updating repos in RedHat
+      yum:
+       name: "*"
+       state: latest
+    - name: Install required system packages
+      yum:
+       name: "{{item}}"
+       state: latest
+      loop:
+       - yum-utils
+       - curl
+       - python*
+       - java-1.8.0-openjdk
+    - name: Add docker to yum repository
+      get_url:
+       url: https://download.docker.com/linux/centos/docker-ce.repo
+       dest: /etc/yum.repos.d/docer-ce.repo
+    - name: Installing Docker
+      yum:
+       name: docker
+       state: present
+    - name: starting and enabling docker service
+      service:
+       name: docker
+       state: started
+       enabled: yes
+    - name: Capturing details
+      shell: "docker --version"
+      register: docker_details
+    - set_fact:
+       docker_info: "{{docker_details.stdout}}"
+    - name: Displaying Installed version
+      debug:
+       msg: var= docker_info
+        - Installed "{{docker_info}}"
+    - name: Copy ansible_dockerfile to remote node
+      copy:
+       src: ansible_dockerfile
+       dest: /opt/
+       mode: '0755'
+    - name: Create ansible docker image
+      shell: "cd /opt/ansible_dockerfile;docker build -t 'ansible_img:1.0' ."
+    - name: Removing existed ansible_container
+      shell: "docker rm -f ansbile_container"
+      ignore_errors: yes
+    - name: launching ansible container
+      shell: "docker run -itd --name ansible_container ansible_img:1.0"
+    - name: Access ansible container
+      debug:
+       msg:
+        - 'Login to : "{{inventory_hostname}}" server and hit: sudo docker exec -it ansible_container /bin/bash'
